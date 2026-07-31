@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
+<title>Carnet — трекер привычек</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+  :root{
+    --cream:#F6F0E2;
+    --cream-deep:#EEE4CE;
+    --noir:#1B1613;
+    --gold:#B4882B;
+    --gold-pale:#D8BC77;
+    --vert:#1F4A38;
+    --line:#2A241D;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%}
+  body{
+    background:var(--cream);
+    color:var(--noir);
+    font-family:"Futura","Avenir Next","Century Gothic",-apple-system,"Segoe UI",sans-serif;
+    max-width:430px;margin:0 auto;
+    padding:20px 18px 40px;
+    -webkit-font-smoothing:antialiased;
+  }
+  .serif{font-family:"Didot","Bodoni MT","Playfair Display",Georgia,serif}
+
+  /* ── Шапка ─────────────────────────── */
+  header{
+    border:1.5px solid var(--noir);
+    padding:18px 14px 16px;
+    position:relative;text-align:center;margin-bottom:22px;
+  }
+  header::before{content:"";position:absolute;inset:4px;border:1px solid var(--gold);pointer-events:none}
+  .eyebrow{font-size:10px;letter-spacing:.32em;text-transform:uppercase;color:var(--gold);margin-bottom:8px}
+  h1{font-size:34px;font-weight:400;letter-spacing:.04em;line-height:1}
+  .date{margin-top:8px;font-size:11px;letter-spacing:.22em;text-transform:uppercase}
+  .rule{display:flex;align-items:center;justify-content:center;gap:8px;margin-top:12px}
+  .rule::before,.rule::after{content:"";height:1px;width:52px;background:var(--noir)}
+  .rule span{color:var(--gold);font-size:9px;line-height:1}
+
+  /* ── Веер недели ───────────────────── */
+  .week{text-align:center;margin-bottom:24px}
+  .week svg{display:block;margin:0 auto}
+  .week-caption{font-size:10px;letter-spacing:.26em;text-transform:uppercase;margin-top:6px}
+  .week-caption b{color:var(--gold);font-weight:600}
+
+  /* ── Заголовки секций и табы ───────── */
+  .section-title{
+    display:flex;align-items:center;gap:12px;
+    font-size:11px;letter-spacing:.3em;text-transform:uppercase;
+    margin:26px 0 12px;
+  }
+  .section-title::after{content:"";flex:1;height:1px;background:var(--line);opacity:.35}
+  .section-title .dia{color:var(--gold);font-size:9px}
+
+  .day-tabs{display:flex;gap:0;border:1.5px solid var(--noir);margin-bottom:14px}
+  .day-tab{
+    flex:1;text-align:center;padding:9px 0;
+    font-size:11px;letter-spacing:.24em;text-transform:uppercase;
+    cursor:pointer;user-select:none;
+  }
+  .day-tab.on{background:var(--vert);color:var(--cream)}
+  .day-tab.on b{color:var(--gold-pale)}
+
+  /* ── Карточки привычек ─────────────── */
+  .card{
+    border:1.5px solid var(--noir);
+    background:var(--cream);
+    padding:14px 14px 13px;
+    margin-bottom:10px;
+    cursor:pointer;user-select:none;
+    transition:background .18s ease;
+  }
+  .card:active{background:var(--cream-deep)}
+  .card.done{background:var(--cream-deep)}
+  .card-row{display:flex;align-items:center;gap:14px}
+  .card-info{flex:1;min-width:0}
+  .card-name{font-size:21px;line-height:1.15;letter-spacing:.02em}
+  .card-note{font-size:10px;letter-spacing:.14em;text-transform:uppercase;opacity:.55;margin-top:3px}
+  .card-streak{
+    margin-top:7px;font-size:11px;letter-spacing:.12em;text-transform:uppercase;
+    display:flex;align-items:center;gap:6px;flex-wrap:wrap;
+  }
+  .card-streak .dia{color:var(--gold);font-size:8px}
+  .card-streak.zero{opacity:.45}
+  .card-streak.zero .dia{color:var(--noir)}
+  .freeze-note{opacity:.55;font-size:10px}
+  .full-note{color:var(--gold)}
+  .card.rich{border-color:var(--gold)}
+  .card.bravo{border-color:var(--gold);box-shadow:inset 0 0 0 1px var(--gold)}
+  .card.bravo .mark{background:var(--gold);border-color:var(--gold)}
+  .record-note{opacity:.55}
+  .record-note.beat{opacity:1;color:var(--gold)}
+
+  .mark{
+    flex:none;width:46px;height:46px;
+    border:1.5px solid var(--noir);
+    transform:rotate(45deg);
+    display:flex;align-items:center;justify-content:center;
+    transition:background .18s ease,border-color .18s ease;
+  }
+  .mark svg{transform:rotate(-45deg);opacity:0;transition:opacity .18s ease}
+  .card.done .mark{background:var(--vert);border-color:var(--vert)}
+  .card.done .mark svg{opacity:1}
+
+  /* Виды занятий внутри карточки */
+  .subs{
+    display:none;flex-wrap:wrap;gap:8px;
+    margin-top:12px;padding-top:12px;
+    border-top:1px solid var(--gold-pale);
+  }
+  .card.open .subs{display:flex}
+  .sub{
+    border:1px solid var(--noir);
+    padding:7px 12px;font-size:11px;letter-spacing:.1em;text-transform:uppercase;
+    display:flex;align-items:center;gap:7px;
+    transition:background .15s ease,color .15s ease;
+  }
+  .sub .d{font-size:8px;color:var(--noir);opacity:.4}
+  .sub.on{background:var(--vert);border-color:var(--vert);color:var(--cream)}
+  .sub.on .d{color:var(--gold-pale);opacity:1}
+  .expand-hint{
+    font-size:9px;letter-spacing:.2em;text-transform:uppercase;
+    color:var(--gold);margin-top:7px;
+  }
+
+  .weekly-progress{
+    margin-top:7px;font-size:11px;letter-spacing:.12em;text-transform:uppercase;
+    display:flex;align-items:center;gap:6px;
+  }
+  .weekly-progress .dia{font-size:8px;color:var(--noir);opacity:.3}
+  .weekly-progress .dia.on{color:var(--gold);opacity:1}
+  .weekly-progress em{font-style:normal;opacity:.55;margin-left:2px}
+
+  /* ── Календарь месяца ──────────────── */
+  .cal{border:1.5px solid var(--noir);padding:14px;position:relative;margin-bottom:10px}
+  .cal::before{content:"";position:absolute;inset:4px;border:1px solid var(--gold);pointer-events:none}
+  .cal-head{display:flex;align-items:center;justify-content:space-between;margin:4px 6px 12px;position:relative;z-index:1}
+  .cal-title{font-size:19px;letter-spacing:.06em}
+  .cal-title-wrap{text-align:center}
+  .cal-badge{font-size:9px;letter-spacing:.22em;text-transform:uppercase;color:var(--gold);margin-top:3px}
+  .cal-nav{
+    width:34px;height:34px;border:1px solid var(--noir);
+    display:flex;align-items:center;justify-content:center;
+    font-size:15px;cursor:pointer;user-select:none;
+  }
+  .cal-nav.off{opacity:.25;pointer-events:none}
+  .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;position:relative;z-index:1}
+  .cal-dow{
+    text-align:center;font-size:9px;letter-spacing:.15em;
+    padding:4px 0;opacity:.5;text-transform:uppercase;
+  }
+  .cal-day{
+    aspect-ratio:1;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;gap:2px;
+    font-size:12px;cursor:pointer;user-select:none;
+    border:1px solid transparent;
+  }
+  .cal-day.other{visibility:hidden}
+  .cal-day.future{opacity:.3;pointer-events:none}
+  .cal-day.golden{background:var(--gold);color:var(--cream);font-weight:600}
+  .cal-day .dot{width:4px;height:4px;background:var(--gold);transform:rotate(45deg)}
+  .cal-day.golden .dot{background:var(--cream)}
+  .cal-day .nodot{width:4px;height:4px}
+  .cal-day.sel{border-color:var(--noir)}
+  .cal-day.today-cell{text-decoration:underline;text-underline-offset:3px}
+
+  .day-detail{
+    border:1.5px solid var(--noir);padding:14px 16px;margin-bottom:10px;
+  }
+  .day-detail h3{font-size:17px;font-weight:400;margin-bottom:8px}
+  .day-detail ul{list-style:none}
+  .day-detail li{
+    font-size:11px;letter-spacing:.1em;text-transform:uppercase;
+    padding:5px 0;display:flex;gap:8px;align-items:baseline;
+  }
+  .day-detail li .d{color:var(--gold);font-size:8px}
+  .day-detail li em{font-style:normal;opacity:.55;text-transform:none;letter-spacing:.02em}
+  .day-detail .empty{font-size:11px;letter-spacing:.08em;opacity:.5;text-transform:uppercase}
+
+  /* ── Статистика месяца ─────────────── */
+  .stats{border:1.5px solid var(--noir);padding:16px;margin-bottom:10px}
+  .stats-group{margin-bottom:14px}
+  .stats-group:last-child{margin-bottom:2px}
+  .stats-name{font-size:17px;margin-bottom:8px}
+  .stat-row{display:flex;align-items:center;gap:10px;padding:4px 0}
+  .stat-label{
+    flex:0 0 118px;font-size:10px;letter-spacing:.1em;text-transform:uppercase;
+  }
+  .stat-bar{flex:1;height:8px;background:var(--cream-deep);position:relative}
+  .stat-bar i{position:absolute;left:0;top:0;bottom:0;background:var(--gold)}
+  .stat-num{flex:0 0 22px;text-align:right;font-size:12px}
+  .stat-total{font-size:10px;letter-spacing:.16em;text-transform:uppercase;color:var(--gold);margin-top:8px}
+
+  footer{
+    margin-top:30px;text-align:center;
+    font-size:9px;letter-spacing:.3em;text-transform:uppercase;opacity:.45;
+  }
+
+  .stub{border:1.5px solid var(--noir);position:relative;padding:30px 20px;text-align:center;margin-top:20px}
+  .stub::before{content:"";position:absolute;inset:4px;border:1px solid var(--gold)}
+  .stub h2{font-size:24px;font-weight:400;margin-bottom:10px}
+  .stub p{font-size:12px;line-height:1.6;letter-spacing:.04em}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="eyebrow">Paris · Carnet</div>
+  <h1 class="serif">Мои привычки</h1>
+  <div class="date" id="today-date"></div>
+  <div class="rule"><span>◆</span></div>
+</header>
+
+<div id="app"></div>
+
+<footer>fait à paris · pour moi</footer>
+
+<script>
+(function(){
+  "use strict";
+
+  /* ── Telegram ── */
+  var tg = window.Telegram && window.Telegram.WebApp;
+  if (tg) { try { tg.ready(); tg.expand(); } catch(e){} }
+  function haptic(){ if (tg && tg.HapticFeedback) { try { tg.HapticFeedback.impactOccurred("light"); } catch(e){} } }
+
+  /* ── Даты ── */
+  var DOW = ["ПН","ВТ","СР","ЧТ","ПТ","СБ","ВС"];
+  var MONTHS_G = ["января","февраля","марта","апреля","мая","июня","июля","августа","сентября","октября","ноября","декабря"];
+  var MONTHS_N = ["Январь","Февраль","Март","Апрель","Май","Июнь","Июль","Август","Сентябрь","Октябрь","Ноябрь","Декабрь"];
+  var WEEKDAYS = ["Воскресенье","Понедельник","Вторник","Среда","Четверг","Пятница","Суббота"];
+
+  function iso(d){
+    return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+  }
+  function fromISO(s){ var p=s.split("-"); return new Date(+p[0],+p[1]-1,+p[2]); }
+  function addDays(d,n){ var x=new Date(d); x.setDate(x.getDate()+n); return x; }
+  function mondayOf(d){ return addDays(d, -((d.getDay()+6)%7)); }
+
+  /* «сегодня» всегда по парижскому времени, независимо от устройства */
+  function parisToday(){
+    try {
+      var p = new Intl.DateTimeFormat("en-CA",{timeZone:"Europe/Paris",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date());
+      var a = p.split("-");
+      return new Date(+a[0],+a[1]-1,+a[2]);
+    } catch(e){ var d=new Date(); d.setHours(0,0,0,0); return d; }
+  }
+  var today = parisToday();
+  var todayISO = iso(today);
+  var yesterdayISO = iso(addDays(today,-1));
+  var monday = mondayOf(today);
+
+  document.getElementById("today-date").textContent =
+    WEEKDAYS[today.getDay()]+" · "+today.getDate()+" "+MONTHS_G[today.getMonth()];
+
+  /* ── Состояние UI ── */
+  var habits = [];
+  var activeDate = todayISO;                 /* сегодня или вчера */
+  var openCards = {};                        /* раскрытые карточки */
+  var calY = today.getFullYear(), calM = today.getMonth();
+  var selectedDay = null;
+
+  /* ── Хранилище ── */
+  var STORE_KEY = "carnet_v1";
+  function loadStore(){
+    try { var s = localStorage.getItem(STORE_KEY); return s ? JSON.parse(s) : null; }
+    catch(e){ return null; }
+  }
+  function saveStore(){
+    try {
+      var out = {};
+      habits.forEach(function(h){ out[h.id] = h.subs ? h.marks : Object.keys(h.marks); });
+      localStorage.setItem(STORE_KEY, JSON.stringify(out));
+    } catch(e){ /* нет localStorage — работаем в памяти */ }
+  }
+
+  /* ── Загрузка данных ── */
+  fetch("data.json?v="+Date.now())
+    .then(function(r){ if(!r.ok) throw new Error(r.status); return r.json(); })
+    .then(function(data){ init(data.habits); })
+    .catch(function(){ renderStub(); });
+
+  function init(list){
+    var saved = loadStore();
+    habits = (list||[]).map(function(h){
+      var marks = {};
+      if (saved && saved[h.id] !== undefined){
+        if (h.subs){ marks = saved[h.id] || {}; }
+        else { (saved[h.id]||[]).forEach(function(d){ marks[d]=true; }); }
+      } else if (h.subs){
+        for (var k in h.history) marks[k] = h.history[k].slice();
+      } else {
+        (h.history||[]).forEach(function(d){ marks[d]=true; });
+      }
+      return { id:h.id, name:h.name, note:h.note||"", type:h.type,
+               target:h.target||1, subs:h.subs||null, marks:marks };
+    });
+    render();
+  }
+
+  /* ── Логика отметок ── */
+  function isDone(h, dISO){
+    if (h.subs) return !!(h.marks[dISO] && h.marks[dISO].length);
+    return !!h.marks[dISO];
+  }
+  function toggleSimple(h, dISO){
+    if (h.marks[dISO]) delete h.marks[dISO]; else h.marks[dISO]=true;
+    haptic(); saveStore(); render();
+  }
+  function toggleSub(h, dISO, subId){
+    var arr = h.marks[dISO] || (h.marks[dISO]=[]);
+    var i = arr.indexOf(subId);
+    if (i===-1) arr.push(subId); else arr.splice(i,1);
+    if (!arr.length) delete h.marks[dISO];
+    haptic(); saveStore(); render();
+  }
+
+  /* Серия с одной заморозкой в неделю */
+  function dailyStreak(h){
+    var streak=0, frozenWeeks={}, freezeInCurrentWeek=false;
+    var d = isDone(h,todayISO) ? today : addDays(today,-1);
+    for (var i=0;i<400;i++){
+      var dI = iso(d);
+      if (isDone(h,dI)){ streak++; }
+      else {
+        var wk = iso(mondayOf(d));
+        if (frozenWeeks[wk]) break;
+        frozenWeeks[wk]=true;
+        if (wk === iso(monday)) freezeInCurrentWeek = true;
+        if (streak===0 && dI!==yesterdayISO) break; /* серия ещё не началась */
+      }
+      d = addDays(d,-1);
+    }
+    return { n:streak, frozen:freezeInCurrentWeek && streak>0 };
+  }
+
+  function weekCount(h){
+    var c=0;
+    for (var i=0;i<7;i++){
+      var d=addDays(monday,i);
+      if (d>today) break;
+      if (isDone(h,iso(d))) c++;
+    }
+    return c;
+  }
+
+  function subCount(h, dISO){
+    return (h.subs && h.marks[dISO]) ? h.marks[dISO].length : 0;
+  }
+  /* уровень дня: 0 — обычный, 1 — très bien (3 вида), 2 — bravo (все 4) */
+  function dayTier(h, dISO){
+    if (!h.subs) return 0;
+    var c = subCount(h, dISO);
+    if (c >= h.subs.length) return 2;
+    if (c >= 3) return 1;
+    return 0;
+  }
+  function tierNote(t){
+    if (t === 2) return ' <span class="full-note">· ◆◆◆ bravo !</span>';
+    if (t === 1) return ' <span class="full-note">· ◆◆ très bien</span>';
+    return '';
+  }
+
+  /* лучшая серия за всё время — с той же заморозкой раз в неделю */
+  function bestStreak(h){
+    var dates = Object.keys(h.marks).sort();
+    if (!dates.length) return 0;
+    var d = fromISO(dates[0]), best = 0, cur = 0, frozen = {};
+    while (d <= today){
+      var dI = iso(d);
+      if (isDone(h, dI)){ cur++; if (cur > best) best = cur; }
+      else if (dI !== todayISO){
+        var wk = iso(mondayOf(d));
+        if (cur > 0 && !frozen[wk]){ frozen[wk] = true; }
+        else { cur = 0; frozen = {}; }
+      }
+      d = addDays(d, 1);
+    }
+    return best;
+  }
+
+  function monthTitle(n){
+    if (n >= 15) return "Гран-при";
+    if (n >= 10) return "Вернисаж";
+    if (n >= 5)  return "Салон";
+    return "Прогулка";
+  }
+
+  function goldenDay(dISO){
+    var ds = habits.filter(function(h){return h.type==="daily";});
+    return ds.length>0 && ds.every(function(h){return isDone(h,dISO);});
+  }
+  function anyActivity(dISO){
+    return habits.some(function(h){return isDone(h,dISO);});
+  }
+
+  /* ── Веер недели ── */
+  function weekFan(){
+    var cx=150, cy=118, r1=42, r2=104, gap=3, span=180/7;
+    var s='<svg width="300" height="132" viewBox="0 0 300 132">', golden=0;
+    for (var i=0;i<7;i++){
+      var d=addDays(monday,i), dI=iso(d);
+      var future = d>today;
+      var gold = !future && goldenDay(dI);
+      if (gold) golden++;
+      var a1=180-i*span-(i?gap/2:0), a2=180-(i+1)*span+gap/2;
+      var fill = gold?"var(--gold)":"none";
+      s += '<path d="'+wedge(cx,cy,r1,r2,a1,a2)+'" fill="'+fill+'" stroke="var(--noir)" stroke-width="1.4" opacity="'+(future?0.25:1)+'"/>';
+      var mid=(a1+a2)/2, tr=r2+12;
+      var tx=cx+tr*Math.cos(mid*Math.PI/180), ty=cy-tr*Math.sin(mid*Math.PI/180)+3;
+      s += '<text x="'+tx+'" y="'+ty+'" text-anchor="middle" font-size="9" letter-spacing="2" font-weight="'+(dI===todayISO?700:400)+'" fill="'+(dI===todayISO?"var(--gold)":"var(--noir)")+'" opacity="'+(future?0.4:1)+'">'+DOW[i]+'</text>';
+    }
+    s += '<text x="'+cx+'" y="'+(cy-6)+'" text-anchor="middle" font-size="8" fill="var(--gold)">◆</text></svg>';
+    return { svg:s, golden:golden };
+  }
+  function wedge(cx,cy,r1,r2,a1,a2){
+    function pt(r,a){ var rad=a*Math.PI/180; return (cx+r*Math.cos(rad)).toFixed(1)+" "+(cy-r*Math.sin(rad)).toFixed(1); }
+    return "M "+pt(r1,a1)+" L "+pt(r2,a1)+" A "+r2+" "+r2+" 0 0 1 "+pt(r2,a2)+" L "+pt(r1,a2)+" A "+r1+" "+r1+" 0 0 0 "+pt(r1,a1)+" Z";
+  }
+
+  /* ── Вспомогательное ── */
+  var CHECK='<svg width="20" height="20" viewBox="0 0 20 20"><path d="M4 10.5 L8.5 15 L16 5.5" fill="none" stroke="#F6F0E2" stroke-width="2"/></svg>';
+  function plural(n,one,few,many){
+    var m10=n%10,m100=n%100;
+    if(m10===1&&m100!==11)return one;
+    if(m10>=2&&m10<=4&&(m100<10||m100>=20))return few;
+    return many;
+  }
+  function esc(s){ return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;"); }
+
+  /* ── Отрисовка ── */
+  function render(){
+    var app=document.getElementById("app");
+    var fan=weekFan();
+    var html="";
+
+    html += '<div class="week">'+fan.svg+
+      '<div class="week-caption"><b>'+fan.golden+'</b> '+
+      plural(fan.golden,"золотой день","золотых дня","золотых дней")+' на этой неделе</div></div>';
+
+    /* Табы Сегодня / Вчера */
+    html += '<div class="day-tabs">'+
+      '<div class="day-tab'+(activeDate===todayISO?" on":"")+'" data-day="'+todayISO+'"><b>◆</b> Сегодня</div>'+
+      '<div class="day-tab'+(activeDate===yesterdayISO?" on":"")+'" data-day="'+yesterdayISO+'"><b>◆</b> Вчера</div>'+
+    '</div>';
+
+    /* Ежедневные */
+    habits.filter(function(h){return h.type==="daily";}).forEach(function(h){
+      var done=isDone(h,activeDate), st=dailyStreak(h);
+      var best=bestStreak(h);
+      var tier=dayTier(h,activeDate);
+      var isOpen = h.subs && openCards[h.id];
+      html += '<div class="card'+(done?" done":"")+(tier===1?" rich":"")+(tier===2?" bravo":"")+(isOpen?" open":"")+'" data-id="'+h.id+'">'+
+        '<div class="card-row">'+
+          '<div class="card-info">'+
+            '<div class="card-name serif">'+esc(h.name)+'</div>'+
+            '<div class="card-note">'+esc(h.note)+'</div>'+
+            '<div class="card-streak'+(st.n?"":" zero")+'"><span class="dia">◆</span>'+
+              (st.n ? st.n+" "+plural(st.n,"день подряд","дня подряд","дней подряд") : "серия не начата")+
+              (best>0 ? ' <span class="record-note'+(st.n>0&&st.n>=best?" beat":"")+'">· '+(st.n>0&&st.n>=best?"новый рекорд ◆":"рекорд "+best)+'</span>' : '')+
+              (st.frozen ? ' <span class="freeze-note">· пропуск прощён</span>' : '')+
+              tierNote(tier)+
+            '</div>'+
+            (h.subs && !isOpen ? '<div class="expand-hint">нажми — отметить занятие ▾</div>' : '')+
+          '</div>'+
+          '<div class="mark">'+CHECK+'</div>'+
+        '</div>';
+      if (h.subs){
+        html += '<div class="subs">';
+        h.subs.forEach(function(s){
+          var on = h.marks[activeDate] && h.marks[activeDate].indexOf(s.id)!==-1;
+          html += '<div class="sub'+(on?" on":"")+'" data-habit="'+h.id+'" data-sub="'+s.id+'"><span class="d">◆</span>'+esc(s.name)+'</div>';
+        });
+        html += '</div>';
+      }
+      html += '</div>';
+    });
+
+    /* Недельные */
+    html += '<div class="section-title"><span class="dia">◆</span>На этой неделе</div>';
+    habits.filter(function(h){return h.type==="weekly";}).forEach(function(h){
+      var done=isDone(h,activeDate), c=weekCount(h), dias="";
+      for (var i=0;i<h.target;i++) dias += '<span class="dia'+(i<c?" on":"")+'">◆</span>';
+      html += '<div class="card'+(done?" done":"")+'" data-id="'+h.id+'">'+
+        '<div class="card-row">'+
+          '<div class="card-info">'+
+            '<div class="card-name serif">'+esc(h.name)+'</div>'+
+            '<div class="card-note">'+esc(h.note)+'</div>'+
+            '<div class="weekly-progress">'+dias+'<em>'+c+' из '+h.target+(c>=h.target?" · готово":"")+'</em></div>'+
+          '</div>'+
+          '<div class="mark">'+CHECK+'</div>'+
+        '</div>'+
+      '</div>';
+    });
+
+    /* Календарь */
+    html += '<div class="section-title"><span class="dia">◆</span>Календарь</div>';
+    html += renderCalendar();
+    if (selectedDay) html += renderDayDetail(selectedDay);
+
+    /* Статистика */
+    html += '<div class="section-title"><span class="dia">◆</span>Статистика · '+MONTHS_N[calM].toLowerCase()+'</div>';
+    html += renderStats();
+
+    app.innerHTML = html;
+    bind(app);
+  }
+
+  function renderCalendar(){
+    var first = new Date(calY,calM,1);
+    var daysInMonth = new Date(calY,calM+1,0).getDate();
+    var lead = (first.getDay()+6)%7;
+    var isCurrent = (calY===today.getFullYear() && calM===today.getMonth());
+    var g=0;
+    for (var gd=1; gd<=daysInMonth; gd++){
+      var gD=new Date(calY,calM,gd);
+      if (gD<=today && goldenDay(iso(gD))) g++;
+    }
+    var s = '<div class="cal"><div class="cal-head">'+
+      '<div class="cal-nav" data-cal="-1">‹</div>'+
+      '<div class="cal-title-wrap"><div class="cal-title serif">'+MONTHS_N[calM]+' '+calY+'</div>'+
+      '<div class="cal-badge">◆ '+monthTitle(g)+' · '+g+' '+plural(g,"золотой день","золотых дня","золотых дней")+'</div></div>'+
+      '<div class="cal-nav'+(isCurrent?" off":"")+'" data-cal="1">›</div>'+
+    '</div><div class="cal-grid">';
+    DOW.forEach(function(d){ s+='<div class="cal-dow">'+d+'</div>'; });
+    for (var i=0;i<lead;i++) s+='<div class="cal-day other"></div>';
+    for (var day=1;day<=daysInMonth;day++){
+      var d=new Date(calY,calM,day), dI=iso(d);
+      var cls="cal-day";
+      if (d>today) cls+=" future";
+      else if (goldenDay(dI)) cls+=" golden";
+      if (dI===todayISO) cls+=" today-cell";
+      if (dI===selectedDay) cls+=" sel";
+      var dot = (d<=today && !goldenDay(dI) && anyActivity(dI)) ? '<span class="dot"></span>' : '<span class="nodot"></span>';
+      s += '<div class="'+cls+'" data-date="'+dI+'">'+day+dot+'</div>';
+    }
+    s += '</div></div>';
+    return s;
+  }
+
+  function renderDayDetail(dISO){
+    var d=fromISO(dISO);
+    var s='<div class="day-detail"><h3 class="serif">'+d.getDate()+' '+MONTHS_G[d.getMonth()]+(goldenDay(dISO)?' · золотой день':'')+'</h3>';
+    var items="";
+    habits.forEach(function(h){
+      if (!isDone(h,dISO)) return;
+      var extra="";
+      if (h.subs){
+        var names=(h.marks[dISO]||[]).map(function(id){
+          var sub=h.subs.filter(function(x){return x.id===id;})[0];
+          return sub?sub.name.toLowerCase():id;
+        });
+        var t=dayTier(h,dISO);
+        extra=' <em>— '+names.join(", ")+(t===2?' · bravo ◆◆◆':(t===1?' · très bien ◆◆':''))+'</em>';
+      }
+      items += '<li><span class="d">◆</span>'+esc(h.name)+extra+'</li>';
+    });
+    s += items ? '<ul>'+items+'</ul>' : '<div class="empty">без отметок</div>';
+    s += '</div>';
+    return s;
+  }
+
+  function renderStats(){
+    var s='<div class="stats">';
+    var groups = habits.filter(function(h){return !!h.subs;});
+    groups.forEach(function(h){
+      var counts = h.subs.map(function(sub){
+        var c=0;
+        for (var k in h.marks){
+          var d=fromISO(k);
+          if (d.getFullYear()===calY && d.getMonth()===calM && h.marks[k].indexOf(sub.id)!==-1) c++;
+        }
+        return { name:sub.name, c:c };
+      });
+      var max = Math.max(1, Math.max.apply(null, counts.map(function(x){return x.c;})));
+      s += '<div class="stats-group"><div class="stats-name serif">'+esc(h.name)+'</div>';
+      counts.forEach(function(x){
+        s += '<div class="stat-row"><div class="stat-label">'+esc(x.name)+'</div>'+
+             '<div class="stat-bar"><i style="width:'+(x.c/max*100)+'%"></i></div>'+
+             '<div class="stat-num">'+x.c+'</div></div>';
+      });
+      var tb=0, br=0;
+      for (var fk in h.marks){
+        var fd=fromISO(fk);
+        if (fd.getFullYear()===calY && fd.getMonth()===calM){
+          var ft=dayTier(h,fk);
+          if (ft===1) tb++;
+          if (ft===2) br++;
+        }
+      }
+      s += '<div class="stat-total">◆◆ très bien — '+tb+' &nbsp;·&nbsp; ◆◆◆ bravo — '+br+'</div>';
+      s += '</div>';
+    });
+    s += '</div>';
+    return s;
+  }
+
+  /* ── События ── */
+  function bind(app){
+    app.querySelectorAll(".day-tab").forEach(function(el){
+      el.addEventListener("click",function(){
+        activeDate = el.getAttribute("data-day"); render();
+      });
+    });
+    app.querySelectorAll(".sub").forEach(function(el){
+      el.addEventListener("click",function(ev){
+        ev.stopPropagation();
+        var h=byId(el.getAttribute("data-habit"));
+        if (h) toggleSub(h, activeDate, el.getAttribute("data-sub"));
+      });
+    });
+    app.querySelectorAll(".card").forEach(function(el){
+      el.addEventListener("click",function(){
+        var h=byId(el.getAttribute("data-id"));
+        if (!h) return;
+        if (h.subs){ openCards[h.id]=!openCards[h.id]; render(); }
+        else toggleSimple(h, activeDate);
+      });
+    });
+    app.querySelectorAll(".cal-nav").forEach(function(el){
+      el.addEventListener("click",function(){
+        calM += +el.getAttribute("data-cal");
+        if (calM<0){calM=11;calY--;} if (calM>11){calM=0;calY++;}
+        selectedDay=null; render();
+      });
+    });
+    app.querySelectorAll(".cal-day[data-date]").forEach(function(el){
+      el.addEventListener("click",function(){
+        var d=el.getAttribute("data-date");
+        selectedDay = (selectedDay===d) ? null : d;
+        render();
+      });
+    });
+  }
+  function byId(id){ return habits.filter(function(h){return h.id===id;})[0]; }
+
+  function renderStub(){
+    document.getElementById("app").innerHTML =
+      '<div class="stub"><h2 class="serif">Данные не загрузились</h2>'+
+      '<p>Файл data.json не найден рядом с приложением.<br>'+
+      'Проверь, что оба файла лежат в одной папке,<br>и открой страницу ещё раз.</p></div>';
+  }
+})();
+</script>
+</body>
+</html>
